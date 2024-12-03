@@ -6,6 +6,8 @@ import { handleCardPlacement, handleJokerAction as handleJokerEffect, distribute
 import i18next from 'i18next';  // Importez i18next directement
 import i18n from '../i18n/config';
 import { createColumnActions } from './slices/columnActions';
+import { createSevenActions } from './actions/sevenActions';
+import { createExchangeActions } from './actions/exchangeActions';
 
 // Au début du fichier, après les autres imports
 const t = (key: string) => i18next.t(key);
@@ -64,7 +66,7 @@ export interface GameStore extends GameState {
 
 // Création du store avec Zustand
 export const useGameStore = create<GameStore>((set, get) => ({
-// État initial du jeu
+  // État initial du jeu
   currentPlayer: {
     id: 'player-1',
     name: 'Joueur 1',
@@ -1006,43 +1008,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
           // Si il y a une carte dans reserveSuit, on la récupère dans la main ou la réserve
           if (existingActivator) {
-            // Si le 7 vient de la main, l'existingActivator va dans la main
-            // Si le 7 vient de la réserve, l'existingActivator va dans la réserve
-            const updatedHand = isFromHand 
-              ? [...newHand, existingActivator]
-              : newHand;
-            const updatedReserve = !isFromHand 
-              ? [...newReserve, existingActivator]
-              : newReserve;
-
-            return {
-              ...state,
-              columns: {
-                ...state.columns,
-                [suit]: {
-                  ...column,
-                  cards: [
-                    ...column.cards.slice(0, position),
-                    card,
-                    ...column.cards.slice(position + 1)
-                  ],
-                  reserveSuit: null,  // On enlève l'activateur
-                  activatorType: null
-                }
-              },
-              currentPlayer: {
-                ...state.currentPlayer,
-                hand: updatedHand,
-                reserve: updatedReserve
-              },
-              selectedCards: [],
-              hasPlayedAction: true,
-              playedCardsLastTurn: 1,
-              message: t('game.messages.sevenExchanged')
-            };
+            if (isFromHand) {
+              newHand.push(existingActivator);
+            } else {
+              newReserve.push(existingActivator);
+            }
           }
 
-          // Si pas d'activateur, placement normal du 7
           return {
             ...state,
             columns: {
@@ -1053,7 +1025,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
                   ...column.cards.slice(0, position),
                   card,
                   ...column.cards.slice(position + 1)
-                ]
+                ],
+                reserveSuit: null,  // On enlève l'activateur
+                activatorType: null
               }
             },
             currentPlayer: {
@@ -1064,65 +1038,26 @@ export const useGameStore = create<GameStore>((set, get) => ({
             selectedCards: [],
             hasPlayedAction: true,
             playedCardsLastTurn: 1,
-            message: t('game.messages.sevenPlaced')
+            message: existingActivator 
+              ? `Échange effectué : le 7 est placé et la carte ${existingActivator.value} est récupérée`
+              : "Le 7 est placé en position d'activateur",
+            canEndTurn: true,
+            phase: 'action'
           };
         }
 
-        // Vérifier si c'est une carte numérique (As à 10)
-        const numericValues = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10'];
-        if (!numericValues.includes(card.value)) {
-          return state;
-        }
-
-        // Vérifier l'ordre chronologique
-        const currentValue = card.value;
-        const expectedValue = numericValues[column.cards.length];
-        if (currentValue !== expectedValue) {
-          return state;
-        }
-
-        // Placement normal dans la séquence
-        const newHand = state.currentPlayer.hand.filter(c => c.id !== card.id);
-        const newReserve = state.currentPlayer.reserve.filter(c => c.id !== card.id);
-
-        // Vérifier si la colonne atteint 10 cartes
-        if (column.cards.length === 9) {
-          // Créer une copie de toutes les cartes de la colonne plus la nouvelle carte
-          const cardsForRevolution = [...column.cards, card];
-          
-          // Message de révolution
-          alert('RÉVOLUTION !');
-          
-          // Retourner les cartes dans la pile de défausse
-          return {
-            ...state,
-            currentPlayer: {
-              ...state.currentPlayer,
-              discardPile: [...state.currentPlayer.discardPile, ...cardsForRevolution]
-            },
-            columns: {
-              ...state.columns,
-              [suit]: {
-                ...column,
-                cards: [], // Vider la colonne
-                reserveSuit: null,
-                activatorType: null
-              }
-            },
-            hasPlayedAction: true,
-            selectedCards: [],
-            playedCardsLastTurn: 1,
-            message: 'Révolution ! Les cartes ont été défaussées.'
-          };
-        }
-
+        // Si pas d'activateur, placement normal du 7
         return {
           ...state,
           columns: {
             ...state.columns,
             [suit]: {
               ...column,
-              cards: [...column.cards, card]
+              cards: [
+                ...column.cards.slice(0, position),
+                card,
+                ...column.cards.slice(position + 1)
+              ]
             }
           },
           currentPlayer: {
@@ -1133,8 +1068,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
           selectedCards: [],
           hasPlayedAction: true,
           playedCardsLastTurn: 1,
-          message: t('game.messages.cardPlaced'),
-          canEndTurn: true
+          message: t('game.messages.sevenPlaced')
         };
       }
 
@@ -1279,15 +1213,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       if (!targetColumn) return state;
 
       // Retirer la carte du joueur de sa main ou réserve
-      const isInHand = state.currentPlayer.hand.some(c => c.id === playerCard.id);
-      const newHand = state.currentPlayer.hand.filter(c => c.id !== playerCard.id);
-      const newReserve = state.currentPlayer.reserve.filter(c => c.id !== playerCard.id);
-      console.log('isInHand', isInHand);
-      console.log('newHand', newHand);
-      console.log('newReserve', newReserve);
-      console.log('targetColumn', targetColumn);
-      console.log(targetColumn.suit);
-      console.log(playerCard);
+      const isInHand = state.currentPlayer.hand.some((c: Card) => c.id === playerCard.id);
+      
       // Placer la carte de la colonne  dans la main ou la réserve selon l'origine
       if (isInHand) {
         newHand.push(columnCard);
