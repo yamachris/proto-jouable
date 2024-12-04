@@ -73,7 +73,11 @@ export function GameControls() {
 
           <div className="flex items-center gap-4">
             <button
-              onClick={handleSurrender}
+                onClick={() => {
+                  if (window.confirm(t('game.actions.surrenderConfirmBox'))) {
+                    handleSurrender();
+                  }
+                }}
               className="px-4 py-2 bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 rounded-lg hover:bg-red-200 dark:hover:bg-red-800 transition-colors duration-300 flex items-center gap-2"
             >
               <Flag className="w-4 h-4" />

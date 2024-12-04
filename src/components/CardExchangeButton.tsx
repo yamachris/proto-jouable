@@ -6,11 +6,12 @@ import { cn } from '../utils/cn';
 import { useGameStore } from '../store/gameStore';
 
 interface CardExchangeButtonProps {
+  suit: string;
   activatorCard: Card;
   column: ColumnState;
 }
 
-export const CardExchangeButton: React.FC<CardExchangeButtonProps> = ({ activatorCard, column }) => {
+export const CardExchangeButton: React.FC<CardExchangeButtonProps> = ({ suit, activatorCard, column }) => {
   const { t } = useTranslation();
   const { 
     currentPlayer, 
@@ -21,73 +22,140 @@ export const CardExchangeButton: React.FC<CardExchangeButtonProps> = ({ activato
     handleSevenAction 
   } = useGameStore();
 
-  // === FONDATIONS : Logique d'échange originale ===
-  const hasValidCard = selectedCards.length === 1 && 
+  // === ÉCHANGE : Logique d'échange ===
+  const hasValidExchangeCard = selectedCards.length === 1 && 
     (selectedCards[0].value === '7' || selectedCards[0].type === 'joker');
-  const canExchange = phase === 'action' && !hasPlayedAction && hasValidCard;
 
-  // === NOUVEL ÉTAGE : Logique de placement automatique ===
-  const sixthCard = column.cards.find((_, index) => index === 5);
-  const is6AtPosition6 = sixthCard?.value === '6';
-  
-  const hasCorrectCardInHandOrReserve = (
-    currentPlayer.hand.some(card => 
-      (card.value === '7' && card.suit === sixthCard?.suit) || 
-      card.type === 'joker'
-    ) ||
-    currentPlayer.reserve.some(card => 
-      (card.value === '7' && card.suit === sixthCard?.suit) || 
-      card.type === 'joker'
-    )
-  );
+  // Vérifier si on peut échanger (phase action, pas d'action jouée, carte valide)
+  const canExchange = phase === 'action' && 
+    !hasPlayedAction && 
+    hasValidExchangeCard &&
+    column.reserveSuit; // Il doit y avoir une carte en reserveSuit
 
-  const reserveSuitCard = column.reserveSuit;
-  const canPlaceCard = is6AtPosition6 && 
-    hasCorrectCardInHandOrReserve &&
-    reserveSuitCard &&
-    phase === 'action' && 
-    !hasPlayedAction;
-
-  // Priorité au placement automatique si les conditions sont réunies
-  if (canPlaceCard && reserveSuitCard && sixthCard) {
+  // Bouton d'échange (uniquement si l'échange est possible)
+  if (canExchange) {
     return (
       <button
         onClick={(e) => {
           e.stopPropagation();
-          // Trouver le bon 7 ou JOKER dans la main ou la réserve
-          const correctCardFromHand = currentPlayer.hand.find(card => 
-            (card.value === '7' && card.suit === sixthCard.suit) || 
-            card.type === 'joker'
-          );
-          const correctCardFromReserve = currentPlayer.reserve.find(card => 
-            (card.value === '7' && card.suit === sixthCard.suit) || 
-            card.type === 'joker'
-          );
-          const correctCard = correctCardFromHand || correctCardFromReserve;
+          const selectedCard = selectedCards[0];
+          
+          // Vérifier que les deux cartes sont des 7 ou JOKER
+          if ((selectedCard.value === '7' || selectedCard.type === 'joker') && 
+              (column.reserveSuit.value === '7' || column.reserveSuit.type === 'joker')) {
+                console.log('=== DÉBUT HANDLE ACTIVATOR EXCHANGE ===');
+                console.log('État initial:', {
+                  selectedCard,
+                  reserveSuit: column.reserveSuit
+                });
+            handleActivatorExchange(suit, column.reserveSuit, selectedCard);
+          }
+        }}
+        className="flex items-center gap-1 px-2 py-1 text-sm rounded dark:bg-slate-800 bg-slate-100 hover:bg-slate-200 dark:hover:bg-slate-700 dark:text-white text-slate-900"
+      >
+        <ArrowLeftRight className="w-4 h-4" />
+        {t('Échanger')}
+      </button>
+    );
+  }
 
-          if (!correctCard) return;
+  // === PLACEMENT : Logique de placement ===
+  // Vérifie si le 7 est déjà dans la reserveSuit
+  const hasCorrectSevenInReserveSuit = column.reserveSuit?.value === '7' && column.reserveSuit?.suit === column.cards[5]?.suit;
+  
+  const hasCorrectSevenInHandOrReserve = (
+    currentPlayer.hand.some(card => card.value === '7' && card.suit === column.cards[5]?.suit) ||
+    currentPlayer.reserve.some(card => card.value === '7' && card.suit === column.cards[5]?.suit)
+  );
 
-          // Mettre à jour la colonne avec le bon 7 ou JOKER
+  // Vérifie si un 7 est présent dans la colonne (pour bloquer la reserveSuit)
+  const hasSevenInColumn = column.cards.some(card => card.value === '7');
+
+  const reserveSuitCard = column.reserveSuit;
+  const canPlaceCard = column.cards[5]?.value === '6' && 
+    !hasSevenInColumn && // Bloque si un 7 est présent dans la colonne
+    phase === 'action' && 
+    !hasPlayedAction &&
+    (hasCorrectSevenInHandOrReserve || hasCorrectSevenInReserveSuit); // Permet le placement si le 7 est dans la reserveSuit
+
+  // Vérifier les limites de main et réserve
+  const handSize = currentPlayer.hand.length;
+  const reserveSize = currentPlayer.reserve.length;
+  const maxHandSize = 5;
+  const maxReserveSize = 2;
+
+  // Priorité au placement automatique si les conditions sont réunies
+  if (canPlaceCard && column.cards[5]) {
+    return (
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          // Trouver le 7 de la même couleur dans la main, réserve ou reserveSuit
+          const correctSevenFromHand = currentPlayer.hand.find(card => 
+            card.value === '7' && card.suit === column.cards[5].suit
+          );
+          const correctSevenFromReserve = currentPlayer.reserve.find(card => 
+            card.value === '7' && card.suit === column.cards[5].suit
+          );
+          const correctSevenFromReserveSuit = column.reserveSuit?.value === '7' && 
+            column.reserveSuit?.suit === column.cards[5].suit ? column.reserveSuit : null;
+          
+          const correctSeven = correctSevenFromHand || correctSevenFromReserve || correctSevenFromReserveSuit;
+
+          if (!correctSeven) return;
+
+          // Vérifier les limites avant le placement
+          const isFromHand = correctSevenFromHand !== undefined;
+          const targetSize = isFromHand ? handSize : reserveSize;
+          const maxSize = isFromHand ? maxHandSize : maxReserveSize;
+
+          if (targetSize >= maxSize && column.reserveSuit) {
+            useGameStore.setState(state => ({
+              ...state,
+              message: 'Cette action dépasserait la limite de cartes permise.'
+            }));
+            return;
+          }
+
+          // Récupérer la carte existante dans reserveSuit si elle existe
+          const existingReserveSuit = column.reserveSuit;
+
+          // Mettre à jour la colonne avec le 7 et bloquer la réserve
           const newColumn = {
             ...column,
-            cards: [...column.cards, correctCard],
+            cards: [...column.cards, correctSeven],
             reserveSuit: null,
-            activatorType: null
+            activatorType: null,
+            isReserveBlocked: true
           };
 
-          // Mettre à jour la main ou la réserve du joueur avec la carte de la reserveSuit
-          const newPlayerHand = correctCardFromHand 
-            ? currentPlayer.hand.map(card => card === correctCard ? reserveSuitCard : card)
-            : currentPlayer.hand;
-          const newPlayerReserve = correctCardFromReserve
-            ? currentPlayer.reserve.map(card => card === correctCard ? reserveSuitCard : card)
-            : currentPlayer.reserve;
-          
+          // Mettre à jour la main ou la réserve du joueur
+          let newPlayerHand = [...currentPlayer.hand];
+          let newPlayerReserve = [...currentPlayer.reserve];
+
+          if (correctSevenFromHand) {
+            // Si le 7 vient de la main
+            newPlayerHand = newPlayerHand.filter(card => card.id !== correctSeven.id);
+            if (existingReserveSuit) {
+              if (handSize < maxHandSize) {
+                newPlayerHand.push(existingReserveSuit);
+              }
+            }
+          } else if (correctSevenFromReserve) {
+            // Si le 7 vient de la réserve
+            newPlayerReserve = newPlayerReserve.filter(card => card.id !== correctSeven.id);
+            if (existingReserveSuit) {
+              if (reserveSize < maxReserveSize) {
+                newPlayerReserve.push(existingReserveSuit);
+              }
+            }
+          }
+
           useGameStore.setState(state => ({
             ...state,
             columns: {
               ...state.columns,
-              [sixthCard.suit]: newColumn
+              [column.cards[5].suit]: newColumn
             },
             currentPlayer: {
               ...state.currentPlayer,
@@ -95,37 +163,16 @@ export const CardExchangeButton: React.FC<CardExchangeButtonProps> = ({ activato
               reserve: newPlayerReserve
             },
             hasPlayedAction: true,
-            message: correctCard.type === 'joker' 
-              ? t('game.messages.jokerPlaced')
-              : t('game.messages.sevenPlaced')
+            message: existingReserveSuit 
+              ? `Le 7 est placé et la carte ${existingReserveSuit.value} est récupérée`
+              : "Le 7 est placé en position d'activateur",
+            phase: 'action'
           }));
         }}
         className="flex items-center gap-1 px-2 py-1 text-sm rounded dark:bg-slate-800 bg-slate-100 hover:bg-slate-200 dark:hover:bg-slate-700 dark:text-white text-slate-900"
       >
         <ArrowDown className="w-4 h-4" />
         {t('Placer')}
-      </button>
-    );
-  }
-
-  // Sinon, permettre l'échange entre 7/JOKER
-  if (hasValidCard && reserveSuitCard) {
-    return (
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          const selectedCard = selectedCards[0];
-
-          // Vérifier que les deux cartes sont des 7 ou JOKER
-          if ((selectedCard.value === '7' || selectedCard.type === 'joker') && 
-              (reserveSuitCard.value === '7' || reserveSuitCard.type === 'joker')) {
-            handleActivatorExchange(reserveSuitCard, selectedCard);
-          }
-        }}
-        className="flex items-center gap-1 px-2 py-1 text-sm rounded dark:bg-slate-800 bg-slate-100 hover:bg-slate-200 dark:hover:bg-slate-700 dark:text-white text-slate-900"
-      >
-        <ArrowLeftRight className="w-4 h-4" />
-        {t('Échanger')}
       </button>
     );
   }
@@ -144,7 +191,7 @@ export const TestButton: React.FC = () => {
   };
 
   const testGameLogic = () => {
-    setLogs([]); // Réinitialiser les logs
+    setLogs([]); 
     try {
       // Créer une séquence de test pour le remplacement du 7
       const testCards = [

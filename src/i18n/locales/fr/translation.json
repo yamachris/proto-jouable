@@ -47,6 +47,7 @@
     },
     "actions": {
       "exchange": "Échanger",
+      "surrenderConfirmBox": "Voulez-vous vraiment abandonner ?",
       "surrender": "Abandonner",
       "skipAction": "Passer l'Action",
       "endTurn": "Fin du Tour",

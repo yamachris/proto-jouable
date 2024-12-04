@@ -66,6 +66,7 @@ export function UnitColumn({ suit, column, onCardPlace, isActive }: UnitColumnPr
               )}
             </div>
             <CardExchangeButton 
+              suit={suit}
               activatorCard={column.reserveSuit}
               column={column}
             />
@@ -77,7 +78,7 @@ export function UnitColumn({ suit, column, onCardPlace, isActive }: UnitColumnPr
 
   const renderCardInSlot = (value: string) => {
     const cardInSlot = column.cards.find(card => card.value === value);
-    const isAs = value === 'As';
+    const isAs = value === 'A';
     
     return (
       <div
@@ -86,10 +87,10 @@ export function UnitColumn({ suit, column, onCardPlace, isActive }: UnitColumnPr
           "h-7 border rounded-sm flex items-center justify-center",
           cardInSlot 
             ? "border-solid border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800/50" 
-            : isAs && column.hasLuckyCard
+            : isAs && column.hasLuckyCard && cardInSlot
               ? "border-solid border-yellow-400 dark:border-yellow-500"
               : "border-dashed border-gray-300 dark:border-[#2a3041]",
-          isAs && column.hasLuckyCard && "ring-2 ring-yellow-400 dark:ring-yellow-500"
+          isAs && column.hasLuckyCard && cardInSlot && "ring-2 ring-yellow-400 dark:ring-yellow-500"
         )}
       >
         {cardInSlot ? (
@@ -102,7 +103,7 @@ export function UnitColumn({ suit, column, onCardPlace, isActive }: UnitColumnPr
         ) : (
           <span className={cn(
             "text-sm",
-            isAs && column.hasLuckyCard 
+            isAs && column.hasLuckyCard && cardInSlot
               ? "text-yellow-500 dark:text-yellow-400 font-medium"
               : "text-gray-500 dark:text-[#404859]"
           )}>
@@ -154,7 +155,7 @@ export function UnitColumn({ suit, column, onCardPlace, isActive }: UnitColumnPr
 
       {/* Zone des emplacements de cartes */}
       <div className="px-4 py-2 space-y-[6px]">
-        {['10', '9', '8', '7', '6', '5', '4', '3', '2', 'As'].map(renderCardInSlot)}
+        {['10', '9', '8', '7', '6', '5', '4', '3', '2', 'A'].map(renderCardInSlot)}
       </div>
 
       {/* Zone Valet/Roi avec ligne de séparation */}

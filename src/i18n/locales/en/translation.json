@@ -39,6 +39,7 @@
     },
     "actions": {
       "exchange": "Exchange",
+      "surrenderConfirmBox": "Are you sure you want to surrender?",
       "surrender": "Surrender",
       "skipAction": "Skip Action",
       "endTurn": "End Turn",
